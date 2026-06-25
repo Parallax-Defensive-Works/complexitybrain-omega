@@ -6,6 +6,14 @@ from .active_guard import (
     production_attach_guard,
     production_status_summary,
 )
+from .legacy_guard import (
+    PRODUCTION_ATTACH_REFUSED_EXIT,
+    legacy_attach_preflight,
+    legacy_cli_argv,
+    legacy_command_manifest,
+    legacy_status_preflight,
+    render_legacy_attach_shim,
+)
 from .mission_assurance import (
     ATTACK_COMPATIBLE_EXPORT,
     BehaviorNode,
@@ -67,6 +75,7 @@ __all__ = [
     "DiscoveredRoute",
     "LiveDefenseDecision",
     "MissionPhase",
+    "PRODUCTION_ATTACH_REFUSED_EXIT",
     "RangeTwinReplayCapsule",
     "RunPointer",
     "RunState",
@@ -94,6 +103,10 @@ __all__ = [
     "executive_summary_payload",
     "hash_linked_event_chain",
     "latest_discovery_event",
+    "legacy_attach_preflight",
+    "legacy_cli_argv",
+    "legacy_command_manifest",
+    "legacy_status_preflight",
     "mission_assurance_bundle",
     "pid_exists_from_system",
     "production_attach_guard",
@@ -101,6 +114,7 @@ __all__ = [
     "range_twin_capsule",
     "read_control_plane",
     "refuse_stale_attach",
+    "render_legacy_attach_shim",
     "runtime_report",
     "runtime_status",
     "sovereign_pack_manifest",
