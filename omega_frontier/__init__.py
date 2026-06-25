@@ -39,6 +39,17 @@ from .mission_assurance import (
     sovereign_pack_manifest,
     truth_manifest,
 )
+from .ops_scripts import (
+    PRODUCTION_ATTACH_SCRIPT,
+    PRODUCTION_PREFLIGHT_SCRIPT,
+    PRODUCTION_STATUS_SCRIPT,
+    repository_guard_manifest,
+    repository_guard_scripts,
+    render_production_attach_script,
+    render_production_preflight_script,
+    render_production_status_script,
+    write_repository_guard_scripts,
+)
 from .runner_integration import (
     RangeTwinReplayCapsule,
     attach_status,
@@ -76,6 +87,9 @@ __all__ = [
     "LiveDefenseDecision",
     "MissionPhase",
     "PRODUCTION_ATTACH_REFUSED_EXIT",
+    "PRODUCTION_ATTACH_SCRIPT",
+    "PRODUCTION_PREFLIGHT_SCRIPT",
+    "PRODUCTION_STATUS_SCRIPT",
     "RangeTwinReplayCapsule",
     "RunPointer",
     "RunState",
@@ -115,6 +129,11 @@ __all__ = [
     "read_control_plane",
     "refuse_stale_attach",
     "render_legacy_attach_shim",
+    "render_production_attach_script",
+    "render_production_preflight_script",
+    "render_production_status_script",
+    "repository_guard_manifest",
+    "repository_guard_scripts",
     "runtime_report",
     "runtime_status",
     "sovereign_pack_manifest",
@@ -124,4 +143,5 @@ __all__ = [
     "verify_live_defense_effect",
     "write_control_plane_start",
     "write_mission_assurance_bundle",
+    "write_repository_guard_scripts",
 ]
