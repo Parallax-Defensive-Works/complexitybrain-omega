@@ -8,6 +8,7 @@ from typing import Any, Sequence
 
 from .active_guard import production_attach_guard, production_status_summary
 from .legacy_guard import legacy_command_manifest
+from .ops_scripts import repository_guard_manifest, write_repository_guard_scripts
 from .runtime_bridge import (
     emit_discovery_runtime,
     emit_exposure_runtime,
@@ -97,6 +98,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Python executable legacy scripts should use for the guard CLI",
     )
 
+    install_scripts = sub.add_parser(
+        "install-scripts",
+        help="emit or install repository-owned guarded production status/attach/preflight scripts",
+    )
+    install_scripts.add_argument(
+        "--output-dir",
+        default=None,
+        help="directory to write scripts into; omitted means emit a manifest only",
+    )
+
     discovery = sub.add_parser("discovery", help="emit a pass/fail discovery gate event")
     discovery.add_argument("--state-dir", required=True)
     discovery.add_argument("--base-url", required=True)
@@ -183,6 +194,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             minimum_eligible=args.minimum_eligible,
             python_executable=args.python,
             require_discovery=not args.no_discovery_gate,
+        )
+        _emit(result)
+        return 0
+
+    if args.command == "install-scripts":
+        result = (
+            write_repository_guard_scripts(args.output_dir)
+            if args.output_dir
+            else repository_guard_manifest()
         )
         _emit(result)
         return 0
