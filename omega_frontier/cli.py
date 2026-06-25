@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .active_guard import production_attach_guard, production_status_summary
+from .legacy_guard import legacy_command_manifest
 from .runtime_bridge import (
     emit_discovery_runtime,
     emit_exposure_runtime,
@@ -85,6 +86,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_attach_guard_args(attach)
 
+    legacy_shim = sub.add_parser(
+        "legacy-shim",
+        help="emit guarded status/attach commands and a POSIX shim for legacy scripts",
+    )
+    _add_attach_guard_args(legacy_shim)
+    legacy_shim.add_argument(
+        "--python",
+        default=sys.executable or "python3",
+        help="Python executable legacy scripts should use for the guard CLI",
+    )
+
     discovery = sub.add_parser("discovery", help="emit a pass/fail discovery gate event")
     discovery.add_argument("--state-dir", required=True)
     discovery.add_argument("--base-url", required=True)
@@ -161,6 +173,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         _emit(guard)
         return 0 if guard["allowed"] else 5
+
+    if args.command == "legacy-shim":
+        result = legacy_command_manifest(
+            control_dir=args.control_dir,
+            state_dir=args.state_dir,
+            base_url=args.base_url,
+            html_file=args.html_file,
+            minimum_eligible=args.minimum_eligible,
+            python_executable=args.python,
+            require_discovery=not args.no_discovery_gate,
+        )
+        _emit(result)
+        return 0
 
     if args.command == "discovery":
         result = emit_discovery_runtime(
