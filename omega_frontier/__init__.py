@@ -1,5 +1,11 @@
 """Frontier-grade mission assurance primitives for Omega."""
 
+from .active_guard import (
+    discovery_gate_status,
+    latest_discovery_event,
+    production_attach_guard,
+    production_status_summary,
+)
 from .mission_assurance import (
     ATTACK_COMPATIBLE_EXPORT,
     BehaviorNode,
@@ -81,13 +87,17 @@ __all__ = [
     "detection_exports",
     "detection_validation_payload",
     "discover_routes_from_html",
+    "discovery_gate_status",
     "eligible_routes",
     "emit_discovery_runtime",
     "emit_exposure_runtime",
     "executive_summary_payload",
     "hash_linked_event_chain",
+    "latest_discovery_event",
     "mission_assurance_bundle",
     "pid_exists_from_system",
+    "production_attach_guard",
+    "production_status_summary",
     "range_twin_capsule",
     "read_control_plane",
     "refuse_stale_attach",
