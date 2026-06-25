@@ -87,7 +87,7 @@ def render_production_attach_script() -> str:
         'if [ "$OMEGA_ATTACH_GUARD_RC" -ne 0 ]; then',
         '  exit "$OMEGA_ATTACH_GUARD_RC"',
         "fi",
-        'OMEGA_ATTACH_GUARD_JSON="$OMEGA_ATTACH_GUARD_JSON" exec "$OMEGA_PYTHON" -c '\''import json, os, sys; data=json.loads(os.environ.get("OMEGA_ATTACH_GUARD_JSON", "{}")); argv=data.get("safe_tail_argv"); sys.exit(5) if not argv else os.execvp(argv[0], argv)'\''',
+        "OMEGA_ATTACH_GUARD_JSON=\"$OMEGA_ATTACH_GUARD_JSON\" exec \"$OMEGA_PYTHON\" -c 'import json, os, sys; data=json.loads(os.environ.get(\"OMEGA_ATTACH_GUARD_JSON\", \"{}\")); argv=data.get(\"safe_tail_argv\"); sys.exit(5) if not argv else os.execvp(argv[0], argv)'",
         "",
     ]
     return "\n".join(lines)
