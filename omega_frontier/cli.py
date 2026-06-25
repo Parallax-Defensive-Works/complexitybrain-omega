@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
+from .active_guard import production_attach_guard, production_status_summary
 from .runtime_bridge import (
     emit_discovery_runtime,
     emit_exposure_runtime,
@@ -25,8 +26,27 @@ def _read_text_file(path: str | Path) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
+def _optional_text_file(path: str | Path | None) -> str | None:
+    if path is None:
+        return None
+    return _read_text_file(path)
+
+
 def _emit(value: Any) -> None:
     print(json.dumps(value, indent=2, sort_keys=True))
+
+
+def _add_attach_guard_args(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--control-dir", required=True)
+    command.add_argument("--state-dir", required=True)
+    command.add_argument("--base-url", default=None)
+    command.add_argument("--html-file", default=None)
+    command.add_argument("--minimum-eligible", type=int, default=2)
+    command.add_argument(
+        "--no-discovery-gate",
+        action="store_true",
+        help="development-only escape hatch; production attach requires discovery by default",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -52,6 +72,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="return exit code 2 when attach_decision.allowed is false",
     )
+
+    production_status = sub.add_parser(
+        "production-status",
+        help="run strict production status: current-run attach plus eligible discovery gate",
+    )
+    _add_attach_guard_args(production_status)
+
+    attach = sub.add_parser(
+        "attach",
+        help="refuse stale/root-only runs before printing a safe tail command",
+    )
+    _add_attach_guard_args(attach)
 
     discovery = sub.add_parser("discovery", help="emit a pass/fail discovery gate event")
     discovery.add_argument("--state-dir", required=True)
@@ -105,6 +137,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         status = runtime_status(control_dir=args.control_dir, candidate_state_dir=args.candidate_state_dir)
         _emit(status)
         return 2 if args.strict_attach and not status["attach_decision"].get("allowed") else 0
+
+    if args.command == "production-status":
+        guard = production_attach_guard(
+            control_dir=args.control_dir,
+            state_dir=args.state_dir,
+            base_url=args.base_url,
+            html=_optional_text_file(args.html_file),
+            minimum_eligible=args.minimum_eligible,
+            require_discovery=not args.no_discovery_gate,
+        )
+        _emit(production_status_summary(guard))
+        return 0 if guard["allowed"] else 5
+
+    if args.command == "attach":
+        guard = production_attach_guard(
+            control_dir=args.control_dir,
+            state_dir=args.state_dir,
+            base_url=args.base_url,
+            html=_optional_text_file(args.html_file),
+            minimum_eligible=args.minimum_eligible,
+            require_discovery=not args.no_discovery_gate,
+        )
+        _emit(guard)
+        return 0 if guard["allowed"] else 5
 
     if args.command == "discovery":
         result = emit_discovery_runtime(
