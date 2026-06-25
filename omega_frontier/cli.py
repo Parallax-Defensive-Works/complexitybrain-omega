@@ -16,6 +16,7 @@ from .runtime_bridge import (
     runtime_status,
     start_campaign_runtime,
 )
+from .service_units import systemd_pack_manifest, write_systemd_pack
 
 
 def _read_json_file(path: str | Path | None) -> dict[str, Any]:
@@ -106,6 +107,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         default=None,
         help="directory to write scripts into; omitted means emit a manifest only",
+    )
+
+    systemd_pack = sub.add_parser(
+        "systemd-pack",
+        help="emit or install guarded systemd launch-pack files for direct-run production service units",
+    )
+    systemd_pack.add_argument(
+        "--output-dir",
+        default=None,
+        help="directory to write systemd launch-pack files into; omitted means emit a manifest only",
     )
 
     discovery = sub.add_parser("discovery", help="emit a pass/fail discovery gate event")
@@ -204,6 +215,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.output_dir
             else repository_guard_manifest()
         )
+        _emit(result)
+        return 0
+
+    if args.command == "systemd-pack":
+        result = write_systemd_pack(args.output_dir) if args.output_dir else systemd_pack_manifest()
         _emit(result)
         return 0
 
