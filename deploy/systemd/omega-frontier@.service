@@ -1,0 +1,22 @@
+[Unit]
+Description=Omega frontier mission assurance campaign %i
+Documentation=https://github.com/Parallax-Defensive-Works/complexitybrain-omega
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=%E/omega-frontier/omega-frontier.env
+
+[Service]
+Type=simple
+EnvironmentFile=%E/omega-frontier/omega-frontier.env
+Environment="OMEGA_STATE_DIR=/root/.omega/runs/%i"
+WorkingDirectory=${OMEGA_WORKDIR}
+ExecStartPre=/bin/sh -lc 'test -n "$OMEGA_ROOT_HTML_FILE" && test -s "$OMEGA_ROOT_HTML_FILE"'
+ExecStartPre=/bin/sh -lc 'exec "$OMEGA_PYTHON" -m omega_frontier.cli preflight --control-dir "$OMEGA_CONTROL_DIR" --state-dir "$OMEGA_STATE_DIR" --base-url "$OMEGA_BASE_URL" --html-file "$OMEGA_ROOT_HTML_FILE" --minimum-eligible "$OMEGA_MINIMUM_ELIGIBLE"'
+ExecStart=/bin/sh -lc 'mkdir -p "$OMEGA_STATE_DIR" && exec "$OMEGA_PYTHON" -u "$OMEGA_RUNNER" --url "$OMEGA_BASE_URL" --state-dir "$OMEGA_STATE_DIR" ${OMEGA_RUNNER_ARGS}'
+ExecStopPost=/bin/sh -lc '"$OMEGA_PYTHON" -m omega_frontier.cli report --state-dir "$OMEGA_STATE_DIR" > "$OMEGA_STATE_DIR/mission-assurance-runtime-report.json" 2>/dev/null || true'
+Restart=no
+KillSignal=SIGINT
+TimeoutStopSec=45s
+
+[Install]
+WantedBy=multi-user.target
