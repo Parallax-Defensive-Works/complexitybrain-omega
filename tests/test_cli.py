@@ -1,4 +1,5 @@
 import json
+import os
 
 from omega_frontier.cli import main
 
@@ -25,6 +26,7 @@ def test_cli_status_refuses_stale_candidate(tmp_path, capsys):
         "--argv",
         "omega",
     ]) == 0
+    capsys.readouterr()
     assert main([
         "start",
         "--control-dir",
@@ -38,6 +40,7 @@ def test_cli_status_refuses_stale_candidate(tmp_path, capsys):
         "--argv",
         "omega",
     ]) == 0
+    capsys.readouterr()
 
     exit_code = main([
         "status",
@@ -47,7 +50,7 @@ def test_cli_status_refuses_stale_candidate(tmp_path, capsys):
         str(old_run),
         "--strict-attach",
     ])
-    result = json.loads(capsys.readouterr().out.split("\n{", 2)[-1] if False else capsys.readouterr().out or "{}")
+    result = json.loads(capsys.readouterr().out)
 
     assert exit_code == 2
     assert result["attach_decision"]["allowed"] is False
@@ -94,7 +97,7 @@ def test_cli_preflight_passes_only_current_run_and_discovery_gate(tmp_path, caps
         "--run-id",
         "run-current",
         "--pid",
-        str(__import__("os").getpid()),
+        str(os.getpid()),
         "--argv",
         "omega",
     ]) == 0
