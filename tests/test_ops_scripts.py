@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 
 from omega_frontier.cli import main
 from omega_frontier.ops_scripts import (
@@ -82,3 +83,13 @@ def test_repository_guard_scripts_has_stable_script_names():
     assert scripts[PRODUCTION_STATUS_SCRIPT].startswith("#!/bin/sh")
     assert scripts[PRODUCTION_ATTACH_SCRIPT].startswith("#!/bin/sh")
     assert scripts[PRODUCTION_PREFLIGHT_SCRIPT].startswith("#!/bin/sh")
+
+
+def test_committed_scripts_match_renderer():
+    repo_scripts = Path("scripts")
+    if not repo_scripts.exists():
+        return
+
+    scripts = repository_guard_scripts()
+    for name, expected in scripts.items():
+        assert (repo_scripts / name).read_text(encoding="utf-8") == expected
