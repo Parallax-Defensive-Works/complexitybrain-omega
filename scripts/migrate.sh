@@ -9,8 +9,10 @@
 # replaces the DNS records that point at the old host -> cache purge -> parity check on the
 # real hostname -> a zone Redirect Rule if the old host redirected apex->www or www->apex.
 #
-# Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, the files under sites/<domain>/public,
-# and the token permissions listed in docs/MIGRATION.md. Prints counts and URLs, never content.
+# Needs Cloudflare credentials (CLOUDFLARE_API_TOKEN, or CLOUDFLARE_EMAIL + CLOUDFLARE_API_KEY),
+# the files under sites/<domain>/public, and the permissions listed in docs/MIGRATION.md.
+# CLOUDFLARE_ACCOUNT_ID is found automatically when the credentials see one account.
+# Prints counts and URLs, never content.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -25,19 +27,14 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1"; exit 2 ;;
   esac
 done
-: "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN}"
-: "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID}"
-
-B=https://api.cloudflare.com/client/v4
-api() { curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'content-type: application/json' "$@"; }
+. "$ROOT/scripts/cf-auth.sh"
 head_of() { curl -sS -o /dev/null -I -A "$UA" --max-time 20 -w '%{http_code} %{redirect_url}' "$1" 2>/dev/null || echo "000 "; }
 UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
 mkdir -p "$ROOT/backups"
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 
 # ---- preflight: token, zones, files ------------------------------------------------------
-api "$B/user/tokens/verify" | jq -e '.success and .result.status == "active"' >/dev/null \
-  || { echo "preflight: CLOUDFLARE_API_TOKEN is invalid or inactive"; exit 1; }
+cf_preflight || exit 1
 if [ "$sel" = all ]; then sites="$(ls "$ROOT/sites")"; else sites="$sel"; fi
 for s in $sites; do
   [ -f "$ROOT/sites/$s/public/index.html" ] || { echo "preflight: no files under sites/$s/public (run fetch or import first)"; exit 1; }
@@ -47,7 +44,7 @@ for s in $sites; do
   [ -n "$zid" ] || { echo "preflight: zone $s is not visible to this token"; exit 1; }
   [ "$zacct" = "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "preflight: zone $s belongs to account $zacct, not CLOUDFLARE_ACCOUNT_ID"; exit 1; }
 done
-echo "preflight ok: token active, zones found in the account, files present"
+echo "preflight ok: credentials accepted, zones found in the account, files present"
 
 for s in $sites; do
   echo; echo "########## $s"

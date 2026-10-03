@@ -5,7 +5,7 @@
 #   scripts/cf-redirect-rule.sh <domain> apex-to-www   # https://<domain>/x     -> https://www.<domain>/x  (301)
 #   scripts/cf-redirect-rule.sh <domain> www-to-apex   # https://www.<domain>/x -> https://<domain>/x      (301)
 #
-# Needs CLOUDFLARE_API_TOKEN with  Zone -> Zone: Read  and  Zone -> Dynamic Redirect: Edit.
+# Needs Cloudflare credentials (see scripts/cf-auth.sh) with Zone: Read and Dynamic Redirect: Edit.
 # Does nothing if a rule for that host already exists.
 set -euo pipefail
 
@@ -15,10 +15,9 @@ case "$mode" in
   www-to-apex) from="www.$domain"; to="$domain" ;;
   *) sed -n '2,9p' "$0"; exit 2 ;;
 esac
-: "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN}"
-
-B=https://api.cloudflare.com/client/v4
-api() { curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'content-type: application/json' "$@"; }
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/scripts/cf-auth.sh"
+cf_require_auth || exit 1
 
 zid=$(api "$B/zones?name=$domain" | jq -r '.result[0].id // empty')
 [ -n "$zid" ] || { echo "zone $domain not found in this account"; exit 1; }

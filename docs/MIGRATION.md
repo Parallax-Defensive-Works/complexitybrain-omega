@@ -42,27 +42,49 @@ config file, and `_redirects` / `_headers` files work the same way as on Pages.
 
 ## 0. One-time setup (10 minutes)
 
-1. **Account ID**: Cloudflare dashboard, open any of the four zones, Overview, right-hand column.
-2. **API token**: dashboard, My Profile, API Tokens, Create Token, start from the
-   *Edit Cloudflare Workers* template and make sure it has:
-   - Account: Workers Scripts: Edit
-   - Zone: Workers Routes: Edit, DNS: Edit, SSL and Certificates: Edit, Zone: Read
-   - Zone: Cache Purge: Purge, Dynamic Redirect: Edit (used by `scripts/migrate.sh`)
-   - Zone Resources: include the four zones (or all zones on the account)
-4. If the account has never used a `workers.dev` preview address, set one once: dashboard,
-   Workers & Pages, Overview, "Change" next to the workers.dev subdomain.
-3. On your machine (Node 20+, `jq`, `curl`, `wget`):
+The scripts need Cloudflare credentials, in one of two forms. Store them as environment
+variables (in a cloud session: the environment's settings; on your machine: `export`), never
+in the repository or in a chat.
 
-   ```sh
-   git clone https://github.com/Parallax-Defensive-Works/complexitybrain-omega
-   cd complexitybrain-omega
-   npm ci
-   export CLOUDFLARE_API_TOKEN=...   # from step 2
-   export CLOUDFLARE_ACCOUNT_ID=...  # from step 1
-   npm run dns                       # DNS snapshot + full zone exports into backups/ (your rollback material)
-   ```
+**Option A, a scoped API token (preferred):** dashboard, My Profile, API Tokens, Create Token,
+start from the *Edit Cloudflare Workers* template and make sure it has:
 
-   `backups/` is gitignored. Keep the `.zone` files somewhere safe.
+- Account: Workers Scripts: Edit, Account Settings: Read
+- Zone: Workers Routes: Edit, DNS: Edit, SSL and Certificates: Edit, Zone: Read,
+  Cache Purge: Purge, Dynamic Redirect: Edit
+- Zone Resources: all zones (or the four)
+
+Variable: `CLOUDFLARE_API_TOKEN`.
+
+**Option B, the Global API Key:** dashboard, My Profile, API Tokens, Global API Key, View
+(asks for your password). This key can do anything the account can, so roll it (the "Change"
+button next to it) once the migration is done.
+Variables: `CLOUDFLARE_EMAIL` (the login email) and `CLOUDFLARE_API_KEY`.
+
+**"Verify your email" when creating a token.** Cloudflare refuses to create API tokens until the
+login's email is verified, and the banner sometimes stays even after you clicked the link.
+In order: open `dash.cloudflare.com/profile` and check what it says next to your email; if it
+offers "Resend verification email", use it and open the link in the same browser you are
+logged into; then log out of the dashboard completely and back in; also make sure you are in the
+account that holds the four zones (the account switcher is at the top left). If it still blocks
+you, use Option B, which has no such gate.
+
+`CLOUDFLARE_ACCOUNT_ID` is optional: the scripts look it up when the credentials see a single
+account. (It is on any zone's Overview page, right column.)
+
+Then, on the machine that will run the deploys (Node 20+, `jq`, `curl`, `wget`):
+
+```sh
+git clone https://github.com/Parallax-Defensive-Works/complexitybrain-omega
+cd complexitybrain-omega
+npm ci
+npm run dns      # DNS snapshot + full zone exports into backups/ (your rollback material)
+```
+
+`backups/` is gitignored. Keep the `.zone` files somewhere safe.
+
+If the account has never used a `workers.dev` preview address, set one once: dashboard,
+Workers & Pages, Overview, "Change" next to the workers.dev subdomain.
 
 ## Doing it in one go
 
