@@ -1,0 +1,16 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+backups/
+*.log
+.DS_Store
+sites/*/htaccess.orig
+
+# Site files are NOT committed: this repository is public and the sites are proprietary.
+# Deploy from a machine that holds them (scripts/deploy.sh). See docs/MIGRATION.md.
+sites/*/public/*
+!sites/*/public/.assetsignore
+!sites/*/public/_redirects
+!sites/*/public/_headers
+sites/*/.wrangler-preview.json

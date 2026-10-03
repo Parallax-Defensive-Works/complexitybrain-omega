@@ -1,0 +1,29 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "edward-andrew-weinhaus-com",
+  "compatibility_date": "2026-10-01",
+
+  // Assets-only Worker: no script. Cloudflare serves ./public straight from its edge.
+  // Requests for static assets are free and do not count against Workers request limits.
+  "assets": {
+    "directory": "./public",
+    // "/page.html" and "/dir/index.html" are served at "/page" and "/dir/" (301 to the clean URL).
+    // Use "none" to serve file paths exactly as they are, with no redirects at all.
+    "html_handling": "auto-trailing-slash",
+    // serves public/404.html for unknown paths, if that file exists
+    "not_found_handling": "404-page"
+  },
+
+  // The site's hostnames. The zone already lives on this Cloudflare account, so a deploy
+  // attaches them to this Worker and manages their DNS records. The first deploy that does
+  // so IS the cutover from the old host: see docs/MIGRATION.md before running it.
+  // "scripts/deploy.sh <site> --preview" ignores this block and deploys to workers.dev only.
+  "routes": [
+    { "pattern": "edward-andrew-weinhaus.com", "custom_domain": true },
+    { "pattern": "www.edward-andrew-weinhaus.com", "custom_domain": true }
+  ],
+
+  // No *.workers.dev hostname for the live site (--preview enables it on its own copy).
+  "workers_dev": false,
+  "preview_urls": false
+}

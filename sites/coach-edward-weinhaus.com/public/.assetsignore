@@ -1,0 +1,11 @@
+# Files under public/ that must never be uploaded to Cloudflare (gitignore syntax).
+.htaccess
+.htpasswd
+.well-known/acme-challenge/
+.well-known/pki-validation/
+cgi-bin/
+error_log
+*.php
+*.phtml
+.DS_Store
+Thumbs.db

@@ -1,0 +1,3 @@
+# One rule per line: <from> <to> [status]. Same format as Cloudflare Pages.
+# Host-level redirects (apex -> www) are zone Redirect Rules, not here: see docs/MIGRATION.md.
+/sitemap_index.xml /sitemaps.xml 301

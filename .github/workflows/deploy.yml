@@ -1,0 +1,77 @@
+name: Deploy sites to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sites/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      site:
+        description: 'Site directory under sites/ (or "all")'
+        required: true
+        default: 'all'
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      sites: ${{ steps.pick.outputs.sites }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: pick
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          SITE: ${{ inputs.site }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          all=$(ls sites | jq -R . | jq -sc .)
+          if [ "$EVENT" = workflow_dispatch ]; then
+            if [ "$SITE" = all ]; then sites="$all"; else sites=$(jq -nc --arg s "$SITE" '[$s]'); fi
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            sites="$all"
+          elif git diff --name-only "$BEFORE" "$AFTER" | grep -qE '^(package(-lock)?\.json|\.github/workflows/deploy\.yml)$'; then
+            sites="$all"   # a tooling change redeploys everything
+          else
+            sites=$(git diff --name-only "$BEFORE" "$AFTER" -- sites | awk -F/ 'NF>2 {print $2}' | sort -u | jq -R . | jq -sc .)
+          fi
+          # only sites whose files are present in this checkout (content is not committed while the repo is public)
+          have=$(for s in sites/*/; do s=${s%/}; [ -f "$s/public/index.html" ] && basename "$s"; done | jq -R . | jq -sc .)
+          sites=$(jq -nc --argjson a "$sites" --argjson b "$have" '$a - ($a - $b)')
+          [ "$sites" != "[]" ] || echo "nothing to deploy: no site content in this checkout (see docs/MIGRATION.md)"
+          echo "sites=$sites" >> "$GITHUB_OUTPUT"
+          echo "deploying: $sites"
+
+  deploy:
+    needs: changes
+    if: needs.changes.outputs.sites != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        site: ${{ fromJSON(needs.changes.outputs.sites) }}
+    concurrency:
+      group: deploy-${{ matrix.site }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy ${{ matrix.site }}
+        run: npx wrangler deploy --config "sites/${{ matrix.site }}/wrangler.jsonc"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
