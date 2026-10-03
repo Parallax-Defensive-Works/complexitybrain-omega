@@ -2,7 +2,9 @@
   "name": "complexitybrain-omega-sites",
   "private": true,
   "description": "Static sites hosted on Cloudflare Workers (static assets). See docs/MIGRATION.md.",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "deploy": "scripts/deploy.sh",
     "deploy:all": "scripts/deploy.sh all",
@@ -11,7 +13,8 @@
     "import": "scripts/import-cpanel-archive.sh",
     "verify": "scripts/verify.sh",
     "dns": "scripts/dns-snapshot.sh",
-    "redirect-rule": "scripts/cf-redirect-rule.sh"
+    "redirect-rule": "scripts/cf-redirect-rule.sh",
+    "migrate": "scripts/migrate.sh"
   },
   "devDependencies": {
     "wrangler": "^4.147.0"

@@ -47,8 +47,10 @@ config file, and `_redirects` / `_headers` files work the same way as on Pages.
    *Edit Cloudflare Workers* template and make sure it has:
    - Account: Workers Scripts: Edit
    - Zone: Workers Routes: Edit, DNS: Edit, SSL and Certificates: Edit, Zone: Read
-   - Zone: Dynamic Redirect: Edit (only for `scripts/cf-redirect-rule.sh`)
+   - Zone: Cache Purge: Purge, Dynamic Redirect: Edit (used by `scripts/migrate.sh`)
    - Zone Resources: include the four zones (or all zones on the account)
+4. If the account has never used a `workers.dev` preview address, set one once: dashboard,
+   Workers & Pages, Overview, "Change" next to the workers.dev subdomain.
 3. On your machine (Node 20+, `jq`, `curl`, `wget`):
 
    ```sh
@@ -61,6 +63,20 @@ config file, and `_redirects` / `_headers` files work the same way as on Pages.
    ```
 
    `backups/` is gitignored. Keep the `.zone` files somewhere safe.
+
+## Doing it in one go
+
+Steps 1 to 4 below, as one non-interactive command per site (or `all`), with a safety gate:
+
+```sh
+npm run migrate -- edward-coach-weinhaus.com
+```
+
+It exports the zone for rollback, deploys a workers.dev preview, compares the preview with the
+current site file by file and stops on any difference (`--force` overrides; the gate is
+skipped when the old host is down), then attaches the custom domains, purges the zone cache,
+re-checks the real hostname and recreates any apex/www redirect the old server used to do.
+Everything it prints is counts, status codes and URLs. Logs go to `backups/`.
 
 ## 1. Get the site files onto your machine
 
