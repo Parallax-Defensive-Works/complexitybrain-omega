@@ -231,6 +231,33 @@ redirects), then `coach-edward-weinhaus.com`, then the two `edward-andrew-*` dom
   makes sense in a **private** repository. To go that way: make this repo private (or move
   `sites/` to one), remove the `sites/*/public/*` lines from `.gitignore`, add the two secrets.
 
+## If the Cloudflare account cannot be fixed: move the zones to a new account
+
+A domain can be active in only one Cloudflare account, and each account has its own pair of
+nameservers, so "moving" a zone means adding it to the new account and pointing the domain's
+nameservers at that account's pair. Cloudflare has no button for this; it is done at the
+registrar. Registrars as of 2026-10-03 (public RDAP): Tucows for coach-edward-weinhaus.com,
+edward-andrew-weinhaus.com and edward-coach-weinhaus.com (a wholesaler: the login is at the
+reseller the domains were bought through, probably Shinjiru's client area or Hover), and
+Mat Bao for edward-andrew-weinhaus-disbarment.com. None are on Cloudflare Registrar.
+
+Zero-downtime order:
+
+1. Create the new Cloudflare account with a different email address and verify it.
+2. In the **old** account, for each zone: DNS, Records, Export. Keep the four files. Also note
+   any Redirect Rules or Page Rules (coach-edward-weinhaus.com has an apex-to-www one).
+3. In the **new** account: Add a domain, Free plan, then DNS, Records, Import, using the file
+   from step 2. Check the records match the old account exactly (proxy status included).
+   Cloudflare shows the two new nameservers on the zone's Overview page.
+4. At the registrar, change the domain's nameservers to those two. The Tucows domains carry a
+   "client update prohibited" lock: if the panel refuses the change, switch the domain lock
+   off, change the nameservers, switch it back on.
+5. Wait until the zone shows Active in the new account (minutes to a few hours). Universal
+   SSL is normally issued within 15 minutes of activation; a short certificate warning in
+   that window is possible. The old account's zone then shows as Moved and can be deleted.
+6. Create the API token in the new account (section 0) and run the migration as documented.
+   The Search Console TXT records travel with the import, so nothing changes there.
+
 ## Rollback (while Shinjiru is still active)
 
 1. Dashboard, Workers & Pages, the site's Worker, Settings, Domains & Routes: remove the two
