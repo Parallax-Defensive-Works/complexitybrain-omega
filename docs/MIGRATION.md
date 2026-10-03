@@ -69,6 +69,16 @@ logged into; then log out of the dashboard completely and back in; also make sur
 account that holds the four zones (the account switcher is at the top left). If it still blocks
 you, use Option B, which has no such gate.
 
+**Known Cloudflare bug (2026): the profile says verified, but tokens, the Global API Key and
+Worker deploys all say "verify your email" (API error 10034).** The account's verification
+flag is wrong on Cloudflare's side; no credential trick gets around it, because Worker deploys
+check the same flag. What has worked for others: the form at `dash.cloudflare.com/login-help`,
+choosing "I cannot receive emails from Cloudflare to this address" (it clears their suppression
+list and re-sends the verification link); the resend link under the dashboard's notifications
+tab; doing it in a private window with no ad blocker, VPN or proxy; and, failing that, a support
+ticket (Help Center, your name, My Activities & Requests, Submit a request, category Account).
+Account problems get support on the free plan. Community threads: 951825, 948908, 956849.
+
 `CLOUDFLARE_ACCOUNT_ID` is optional: the scripts look it up when the credentials see a single
 account. (It is on any zone's Overview page, right column.)
 
