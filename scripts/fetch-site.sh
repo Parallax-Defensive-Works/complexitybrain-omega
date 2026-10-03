@@ -68,6 +68,11 @@ find "$tmp" -type f -name '*\?*' -print0 | while IFS= read -r -d '' f; do
   if [ -e "$b" ]; then rm -f "$f"; else mv "$f" "$b"; fi
 done
 
+# --adjust-extension appends .html to anything the server labelled text/html, even robots.txt
+# or a sitemap sent with the wrong content type: give those files their real names back
+find "$tmp" -type f -regextype posix-extended -iregex '.*\.(txt|xml|pdf|jpe?g|png|webp|gif|svg|css|js|json|ico|woff2?)\.html$' -print0 \
+  | while IFS= read -r -d '' f; do b="${f%.html}"; [ -e "$b" ] || mv "$f" "$b"; done
+
 n=$(find "$tmp" -type f | wc -l)
 [ "$n" -gt 0 ] || { echo "nothing fetched - see $log"; exit 1; }
 
