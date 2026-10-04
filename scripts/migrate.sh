@@ -90,10 +90,12 @@ for s in $sites; do
   log="$ROOT/backups/deploy-$s-preview.log"
   "$ROOT/scripts/deploy.sh" "$s" --preview >"$log" 2>&1 \
     || { echo "2. preview deploy failed:"; grep -i -E 'error|✘' "$log" | head -5; echo "   (full log: $log)"; exit 1; }
-  prev=$(grep -o 'https://[a-z0-9.-]*\.workers\.dev' "$log" | head -1)
+  prev=$(grep -o 'https://[a-z0-9.-]*\.workers\.dev' "$log" | head -1 || true)
   [ -n "$prev" ] || { echo "2. no workers.dev URL in the deploy output (register a workers.dev subdomain once in the dashboard?) - see $log"; exit 1; }
-  c=000; for _ in $(seq 1 30); do c=$(curl -s -o /dev/null -A "$UA" -w '%{http_code}' "$prev/"); [ "$c" = 200 ] && break; sleep 2; done
+  # a freshly registered workers.dev subdomain can take several minutes to resolve and get its certificate (waits up to 15)
+  c=000; for _ in $(seq 1 180); do c=$(curl -s -o /dev/null -A "$UA" --max-time 10 -w '%{http_code}' "$prev/" || true); [ "$c" = 200 ] && break; sleep 5; done
   echo "2. preview deployed: $prev (http $c)"
+  [ "$c" = 200 ] || { echo "   preview never answered 200; stopping before cutover"; exit 1; }
 
   # 3. parity gate: preview vs the current site
   if [ "$old_up" = 1 ]; then
