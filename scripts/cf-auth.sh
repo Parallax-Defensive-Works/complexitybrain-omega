@@ -19,7 +19,9 @@ cf_require_auth() {
 cf_preflight() {
   cf_require_auth || return 1
   if [ "$CF_AUTH_KIND" = token ]; then
+    # user-owned tokens verify under /user, account-owned ones (cfat_...) under /accounts/<id>
     api "$B/user/tokens/verify" | jq -e '.success and .result.status == "active"' >/dev/null \
+      || { [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] && api "$B/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify" | jq -e '.success and .result.status == "active"' >/dev/null; } \
       || { echo "preflight: CLOUDFLARE_API_TOKEN is invalid or inactive" >&2; return 1; }
   else
     api "$B/user" | jq -e '.success' >/dev/null \

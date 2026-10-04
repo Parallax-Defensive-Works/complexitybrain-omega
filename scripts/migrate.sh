@@ -44,6 +44,14 @@ for s in $sites; do
   [ -n "$zid" ] || { echo "preflight: zone $s is not visible to this token"; exit 1; }
   [ "$zacct" = "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "preflight: zone $s belongs to account $zacct, not CLOUDFLARE_ACCOUNT_ID"; exit 1; }
 done
+# a workers.dev subdomain is needed for the preview step; register one if the account has none
+sub=$(api "$B/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain // empty')
+if [ -z "$sub" ]; then
+  want="sites-$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | cut -c1-6)"
+  sub=$(api -X PUT "$B/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" --data "{\"subdomain\":\"$want\"}" | jq -r '.result.subdomain // empty')
+  [ -n "$sub" ] || { echo "preflight: could not register a workers.dev subdomain (token needs Workers Scripts: Edit)"; exit 1; }
+  echo "registered workers.dev subdomain: $sub.workers.dev"
+fi
 echo "preflight ok: credentials accepted, zones found in the account, files present"
 
 for s in $sites; do
