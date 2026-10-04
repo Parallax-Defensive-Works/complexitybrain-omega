@@ -16,7 +16,7 @@ All four sites are served by Cloudflare Workers static assets in account
 | edward-coach-weinhaus.com | `edward-coach-weinhaus-com` | A 192.0.2.1 proxied / A 192.0.2.1 proxied | 7 of 7 files identical |
 | coach-edward-weinhaus.com | `coach-edward-weinhaus-com` | A 192.0.2.1 proxied / A 192.0.2.1 proxied | 16 of 16; apex 308 to www kept (existing zone rule) |
 | edward-andrew-weinhaus-disbarment.com | `edward-andrew-weinhaus-disbarment-com` | A 192.0.2.1 proxied / CNAME to apex, proxied | 7 of 7 |
-| edward-andrew-weinhaus.com | `edward-andrew-weinhaus-com` | A 192.0.2.1 proxied / CNAME to apex, proxied | 9 of 9; apex 301 to www recreated as a zone rule; Always Use HTTPS on (as before) |
+| edward-andrew-weinhaus.com | `edward-andrew-weinhaus-com` | A 192.0.2.1 proxied / CNAME to apex, proxied | 9 of 9; apex 301 to www recreated as a zone rule |
 
 How it is wired: each Worker has two zone routes, `<domain>/*` and `www.<domain>/*`. A route
 takes over a proxied hostname as soon as it exists, so the switch had no downtime and needed no
@@ -38,10 +38,12 @@ Everything.
 **Updating a site later**: `npm run fetch -- <domain>` mirrors the site from Cloudflare (the
 files are not in git), edit under `sites/<domain>/public/`, then `npm run deploy -- <domain>`.
 
+Hardening applied 2026-10-04 on all four zones: Always Use HTTPS on (every http request gets a
+301 to https) and Minimum TLS Version 1.2 (TLS 1.0 and 1.1 refused; SSL Labs had graded B
+because of them).
+
 **Left to do**: cancel the Shinjiru hosting when you are ready (nothing depends on it now); roll
-the Global API Key and delete the API tokens that were shared during the migration; optionally
-turn on Always Use HTTPS on the other three zones (two of them still answer plain http, as
-they did on Shinjiru).
+the Global API Key and delete the API tokens that were shared during the migration.
 
 ## What was where before the move (checked 2026-10-03, from public DNS and HTTP headers only)
 
