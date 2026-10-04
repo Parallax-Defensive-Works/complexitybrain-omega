@@ -28,6 +28,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 . "$ROOT/scripts/cf-auth.sh"
+# tools: install wrangler if this checkout has never run npm ci
+[ -x "$ROOT/node_modules/.bin/wrangler" ] || ( cd "$ROOT" && npm ci --no-audit --no-fund >/dev/null 2>&1 ) \
+  || { echo "preflight: npm ci failed"; exit 1; }
 head_of() { curl -sS -o /dev/null -I -A "$UA" --max-time 20 -w '%{http_code} %{redirect_url}' "$1" 2>/dev/null || echo "000 "; }
 UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
 mkdir -p "$ROOT/backups"
@@ -37,7 +40,12 @@ stamp=$(date -u +%Y%m%dT%H%M%SZ)
 cf_preflight || exit 1
 if [ "$sel" = all ]; then sites="$(ls "$ROOT/sites")"; else sites="$sel"; fi
 for s in $sites; do
-  [ -f "$ROOT/sites/$s/public/index.html" ] || { echo "preflight: no files under sites/$s/public (run fetch or import first)"; exit 1; }
+  # site files are not in git (public repo): mirror them from the live site when this checkout has none
+  if [ ! -f "$ROOT/sites/$s/public/index.html" ]; then
+    echo "preflight: no local files for $s; mirroring the live site"
+    "$ROOT/scripts/fetch-site.sh" "$s" | tail -1
+  fi
+  [ -f "$ROOT/sites/$s/public/index.html" ] || { echo "preflight: no files under sites/$s/public and the live site could not be mirrored"; exit 1; }
   z=$(api "$B/zones?name=$s")
   zid=$(printf '%s' "$z" | jq -r '.result[0].id // empty')
   zacct=$(printf '%s' "$z" | jq -r '.result[0].account.id // empty')

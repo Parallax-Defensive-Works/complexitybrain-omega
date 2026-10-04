@@ -16,3 +16,11 @@ npm run deploy -- <domain>                # cutover / later updates (CLOUDFLARE_
 ```
 
 The full runbook, including the cutover from Shinjiru, is in [docs/MIGRATION.md](docs/MIGRATION.md).
+
+**To run the whole migration in one go** (a fresh checkout is fine: it installs wrangler and
+mirrors the live sites itself), with `CLOUDFLARE_EMAIL` + `CLOUDFLARE_API_KEY` or
+`CLOUDFLARE_API_TOKEN` set in the environment:
+
+```sh
+scripts/migrate.sh all
+```
