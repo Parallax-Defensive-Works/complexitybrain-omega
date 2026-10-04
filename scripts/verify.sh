@@ -8,7 +8,8 @@
 #
 #   --new     https://<worker-name>.<account>.workers.dev   (before cutover)
 #             https://www.<domain>                            (after cutover)
-#   --old     defaults to https://www.<domain> or https://<domain>, whichever is canonical today
+#   --old     defaults to https://www.<domain> or https://<domain>, whichever is canonical today;
+#             "local" compares against the files in sites/<domain>/public instead
 #   --old-ip  connect to the old origin's IP directly (bypasses the Cloudflare proxy in front
 #             of it). Required after cutover, when the hostname already points at the Worker.
 set -euo pipefail
@@ -51,7 +52,8 @@ while IFS= read -r -d '' f; do
   case "$path" in */index.html) path="${path%index.html}" ;; esac
   url=$(printf '%s' "$path" | jq -rR 'split("/") | map(@uri) | join("/")')   # spaces etc. in file names
   total=$((total+1))
-  oc=$(curl -s -L -A "$UA" --max-time 30 ${oldopts[@]+"${oldopts[@]}"} -o "$work/o" -w '%{http_code}' "$old$url" || echo 000)
+  if [ "$old" = local ]; then cp "$f" "$work/o"; oc=local
+  else oc=$(curl -s -L -A "$UA" --max-time 30 ${oldopts[@]+"${oldopts[@]}"} -o "$work/o" -w '%{http_code}' "$old$url" || echo 000); fi
   nc=$(curl -s -L -A "$UA" --max-time 30 -o "$work/n" -w '%{http_code}' "$new$url" || echo 000)
   oh=$(sha256sum "$work/o" 2>/dev/null | cut -c1-16 || true)
   nh=$(sha256sum "$work/n" 2>/dev/null | cut -c1-16 || true)

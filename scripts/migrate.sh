@@ -114,12 +114,18 @@ for s in $sites; do
 
   # 6. the real hostname must now serve the same bytes as the preview
   sleep 5
-  out=$("$ROOT/scripts/verify.sh" "$s" --new "$canon" --old "$prev" | head -1)
-  echo "6. live hostname vs preview: $out"
+  out=$("$ROOT/scripts/verify.sh" "$s" --new "$canon" --old local | head -1)
+  echo "6. live hostname vs local files: $out"
 
   # 7. host-level redirect the old server used to do
-  if [ -n "$rule" ]; then printf '7. '; "$ROOT/scripts/cf-redirect-rule.sh" "$s" "$rule"
-  else echo "7. the old host had no apex/www redirect; none added"; fi
+  if [ -z "$rule" ]; then echo "7. the old host had no apex/www redirect; none needed"
+  else
+    case "$rule" in apex-to-www) src="https://$s/"; dst="https://www.$s/" ;; *) src="https://www.$s/"; dst="https://$s/" ;; esac
+    case "$(head_of "$src")" in
+      30[1278]\ "$dst"*) echo "7. $src still redirects to $dst (a zone rule already does it); nothing added" ;;
+      *) printf '7. '; "$ROOT/scripts/cf-redirect-rule.sh" "$s" "$rule" ;;
+    esac
+  fi
 done
 
 echo; echo "done. Check the sites in a browser. After a few quiet days, cancel the old hosting."
