@@ -114,6 +114,14 @@ for s in $sites; do
   else
     echo "3. old host is not answering; skipping the comparison"
   fi
+  # every file the pages reference must load on the preview (catches files the copy never had)
+  refs=$(python3 "$ROOT/scripts/check-refs.py" "$s" "$prev" || true)
+  echo "   references on preview: $(printf '%s\n' "$refs" | sed -n 1p)"
+  if ! printf '%s\n' "$refs" | sed -n 1p | grep -q ', 0 not loading'; then
+    printf '%s\n' "$refs" | sed -n '2,$p'
+    if [ "$force" = 1 ]; then echo "   missing references; continuing because of --force"
+    else echo "   missing references; NOT cutting over. Add the files under sites/$s/public and re-run."; exit 1; fi
+  fi
 
   # 4. live: Worker routes on apex and www. Proxied hostnames switch to the Worker at once.
   log="$ROOT/backups/deploy-$s-live.log"
@@ -172,6 +180,7 @@ for s in $sites; do
   sleep 5
   out=$("$ROOT/scripts/verify.sh" "$s" --new "$canon" --old local | sed -n 1p)
   echo "8. live hostname vs local files: $out"
+  echo "   references on live site: $(python3 "$ROOT/scripts/check-refs.py" "$s" "$canon" | sed -n 1p || true)"
   for h in "$s" "www.$s"; do echo "   https://$h/ -> $(head_of "https://$h/")"; done
 done
 

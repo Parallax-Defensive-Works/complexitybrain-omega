@@ -14,7 +14,7 @@ All four sites are served by Cloudflare Workers static assets in account
 | Site | Worker | DNS (apex / www) | Checked after cutover |
 |---|---|---|---|
 | edward-coach-weinhaus.com | `edward-coach-weinhaus-com` | A 192.0.2.1 proxied / A 192.0.2.1 proxied | 7 of 7 files identical |
-| coach-edward-weinhaus.com | `coach-edward-weinhaus-com` | A 192.0.2.1 proxied / A 192.0.2.1 proxied | 16 of 16; apex 308 to www kept (existing zone rule) |
+| coach-edward-weinhaus.com | `coach-edward-weinhaus-com` | A 192.0.2.1 proxied / A 192.0.2.1 proxied | all files identical to the owner's original assets; apex 308 to www kept (existing zone rule) |
 | edward-andrew-weinhaus-disbarment.com | `edward-andrew-weinhaus-disbarment-com` | A 192.0.2.1 proxied / CNAME to apex, proxied | 7 of 7 |
 | edward-andrew-weinhaus.com | `edward-andrew-weinhaus-com` | A 192.0.2.1 proxied / CNAME to apex, proxied | 9 of 9; apex 301 to www recreated as a zone rule |
 
@@ -24,6 +24,15 @@ new certificate. The apex/www records then moved to `192.0.2.1`, a reserved addr
 never contacted: with the record proxied, Cloudflare answers from the Worker. Unknown paths get a
 404 from the Worker. (Custom domains were tried first; Cloudflare refused them while the existing
 A records were in place, error 100117, so routes were used instead.)
+
+Correction (2026-10-04): the first copy of coach-edward-weinhaus.com lacked three responsive
+image sizes (the 640, 1200 and 1445 px WebP versions of the classroom illustration) because the
+crawler did not follow every `<source srcset>` candidate. The comparison then in place only checked
+files the crawl had saved, so it did not notice. They were replaced with the owner's original
+files (byte-identical, from a download of the site's `assets/` folder), along with one unlinked
+original JPEG. Since then `scripts/check-refs.py` checks every file the pages reference
+(srcset sizes included); `fetch-site.sh` fetches whatever the crawl skipped, and `migrate.sh`
+refuses to cut over while any reference is missing. All four sites pass it.
 
 Email: `edward-andrew-weinhaus-disbarment.com`'s MX pointed at the apex, which no longer reaches
 Shinjiru, so mail to that domain no longer arrives. This was accepted (the domains do not use
@@ -286,4 +295,7 @@ old address, Purge Everything. The zone exports taken before each change hold th
   the copy taken from Shinjiru; apex and www answer as before; unknown paths return 404; no
   response carries the old server's headers. With DNS at 192.0.2.1, any successful response can
   only come from the Worker.
-- No page content was read at any point; only counts, hashes, status codes and headers.
+- Every same-site file referenced by every page (src, href, srcset and `<source srcset>`, CSS
+  url()) loads on all four live sites (`npm run check-refs -- <domain> https://www.<domain>`).
+- No page content was read at any point; only counts, hashes, status codes, headers and the
+  file paths pages reference.

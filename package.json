@@ -12,6 +12,7 @@
     "fetch": "scripts/fetch-site.sh",
     "import": "scripts/import-cpanel-archive.sh",
     "verify": "scripts/verify.sh",
+    "check-refs": "scripts/check-refs.py",
     "dns": "scripts/dns-snapshot.sh",
     "redirect-rule": "scripts/cf-redirect-rule.sh",
     "migrate": "scripts/migrate.sh"

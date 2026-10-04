@@ -75,6 +75,17 @@ done
 find "$tmp" -type f -regextype posix-extended -iregex '.*\.(txt|xml|pdf|jpe?g|png|webp|gif|svg|css|js|json|ico|woff2?)\.html$' -print0 \
   | while IFS= read -r -d '' f; do b="${f%.html}"; [ -e "$b" ] || mv "$f" "$b"; done
 
+# wget does not follow every srcset candidate (e.g. <picture><source srcset="a-640.webp 640w, ...">):
+# fetch every same-site file the pages reference that the crawl did not save
+extra=0
+while IFS= read -r p; do
+  [ -n "$p" ] || continue
+  enc=$(printf '%s' "$p" | jq -rR 'split("/") | map(@uri) | join("/")')
+  mkdir -p "$tmp$(dirname "$p")"
+  if curl -sS -f -L -A "$UA" --max-time 60 -o "$tmp$p" "https://$host$enc" >>"$log" 2>&1; then extra=$((extra+1)); else rm -f "$tmp$p"; echo "missing on the live site: $p" >>"$log"; fi
+done < <(python3 "$ROOT/scripts/check-refs.py" "$domain" "https://$host" --root "$tmp" --local-missing)
+[ "$extra" -eq 0 ] || echo "fetched $extra referenced files the crawler skipped (srcset sizes etc.)"
+
 n=$(find "$tmp" -type f | wc -l)
 [ "$n" -gt 0 ] || { echo "nothing fetched - see $log"; exit 1; }
 
