@@ -14,13 +14,14 @@
     "not_found_handling": "404-page"
   },
 
-  // The site's hostnames. The zone already lives on this Cloudflare account, so a deploy
-  // attaches them to this Worker and manages their DNS records. The first deploy that does
-  // so IS the cutover from the old host: see docs/MIGRATION.md before running it.
-  // "scripts/deploy.sh <site> --preview" ignores this block and deploys to workers.dev only.
+  // The site's hostnames, as Worker routes on the zone. A route takes over a proxied (orange
+  // cloud) hostname the moment it is deployed, with no DNS change and no new certificate, so
+  // the switch has no downtime. scripts/migrate.sh then points the apex/www DNS records at
+  // 192.0.2.1 (proxied) so the old host is out of the path. Deploying this config IS the
+  // cutover: see docs/MIGRATION.md. "scripts/deploy.sh <site> --preview" leaves it out.
   "routes": [
-    { "pattern": "edward-andrew-weinhaus-disbarment.com", "custom_domain": true },
-    { "pattern": "www.edward-andrew-weinhaus-disbarment.com", "custom_domain": true }
+    { "pattern": "edward-andrew-weinhaus-disbarment.com/*", "zone_name": "edward-andrew-weinhaus-disbarment.com" },
+    { "pattern": "www.edward-andrew-weinhaus-disbarment.com/*", "zone_name": "edward-andrew-weinhaus-disbarment.com" }
   ],
 
   // No *.workers.dev hostname for the live site (--preview enables it on its own copy).

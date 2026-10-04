@@ -50,7 +50,9 @@ done >> "$seeds"
 sort -u -o "$seeds" "$seeds"
 
 set +e
-wget --mirror --page-requisites --adjust-extension --no-parent \
+# --trust-server-names: a URL that redirects is saved under its final name (the redirect itself
+# belongs in public/_redirects), so the copy never holds a file the redirect points away from
+wget --mirror --page-requisites --adjust-extension --no-parent --trust-server-names \
      --span-hosts --domains="$domain,www.$domain" \
      --no-host-directories --directory-prefix="$tmp" \
      --exclude-directories=/cdn-cgi \

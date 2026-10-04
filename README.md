@@ -15,7 +15,8 @@ npm run deploy -- <domain> --preview      # workers.dev preview, live site untou
 npm run deploy -- <domain>                # cutover / later updates (CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID)
 ```
 
-The full runbook, including the cutover from Shinjiru, is in [docs/MIGRATION.md](docs/MIGRATION.md).
+**Status: all four sites moved off Shinjiru to Cloudflare on 2026-10-04.** The runbook, the
+current wiring and the rollback steps are in [docs/MIGRATION.md](docs/MIGRATION.md).
 
 **To run the whole migration in one go** (a fresh checkout is fine: it installs wrangler and
 mirrors the live sites itself), with `CLOUDFLARE_EMAIL` + `CLOUDFLARE_API_KEY` or

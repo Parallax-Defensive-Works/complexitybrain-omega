@@ -6,7 +6,44 @@ Cloudflare Worker (static assets served from Cloudflare's edge, no server, no bu
 Nothing in this repository contains or reads the pages themselves: the files stay on your
 machine, and every script reports counts only.
 
-## What is where today (checked 2026-10-03, from public DNS and HTTP headers only)
+## Status: done (2026-10-04)
+
+All four sites are served by Cloudflare Workers static assets in account
+`4a27218f98f55f30ab0e5597b119af0f`. Shinjiru is no longer in the path.
+
+| Site | Worker | DNS (apex / www) | Checked after cutover |
+|---|---|---|---|
+| edward-coach-weinhaus.com | `edward-coach-weinhaus-com` | A 192.0.2.1 proxied / A 192.0.2.1 proxied | 7 of 7 files identical |
+| coach-edward-weinhaus.com | `coach-edward-weinhaus-com` | A 192.0.2.1 proxied / A 192.0.2.1 proxied | 16 of 16; apex 308 to www kept (existing zone rule) |
+| edward-andrew-weinhaus-disbarment.com | `edward-andrew-weinhaus-disbarment-com` | A 192.0.2.1 proxied / CNAME to apex, proxied | 7 of 7 |
+| edward-andrew-weinhaus.com | `edward-andrew-weinhaus-com` | A 192.0.2.1 proxied / CNAME to apex, proxied | 9 of 9; apex 301 to www recreated as a zone rule; Always Use HTTPS on (as before) |
+
+How it is wired: each Worker has two zone routes, `<domain>/*` and `www.<domain>/*`. A route
+takes over a proxied hostname as soon as it exists, so the switch had no downtime and needed no
+new certificate. The apex/www records then moved to `192.0.2.1`, a reserved address that is
+never contacted: with the record proxied, Cloudflare answers from the Worker. Unknown paths get a
+404 from the Worker. (Custom domains were tried first; Cloudflare refused them while the existing
+A records were in place, error 100117, so routes were used instead.)
+
+Email: `edward-andrew-weinhaus-disbarment.com`'s MX pointed at the apex, which no longer reaches
+Shinjiru, so mail to that domain no longer arrives. This was accepted (the domains do not use
+email). `edward-andrew-weinhaus.com`'s MX was already broken before the move.
+
+**Rollback**, per site, while Shinjiru still serves the sites: dashboard, Workers & Pages, the
+site's Worker, Settings, Domains & Routes, delete both routes; then in the zone's DNS set the apex
+and www A records back to the old address (`78.40.143.140` for edward-coach-weinhaus.com,
+`78.40.143.30` for the other three; edward-andrew-weinhaus.com's apex was DNS-only), and Purge
+Everything.
+
+**Updating a site later**: `npm run fetch -- <domain>` mirrors the site from Cloudflare (the
+files are not in git), edit under `sites/<domain>/public/`, then `npm run deploy -- <domain>`.
+
+**Left to do**: cancel the Shinjiru hosting when you are ready (nothing depends on it now); roll
+the Global API Key and delete the API tokens that were shared during the migration; optionally
+turn on Always Use HTTPS on the other three zones (two of them still answer plain http, as
+they did on Shinjiru).
+
+## What was where before the move (checked 2026-10-03, from public DNS and HTTP headers only)
 
 Common to all four:
 
@@ -182,38 +219,16 @@ The other two domains have no email records.
 
 ## 4. Cutover (per site, about a minute)
 
-Run it in a real terminal, not piped: wrangler asks a question.
+`npm run migrate -- <domain>` does it end to end (see "Doing it in one go"). By hand:
 
-```sh
-npm run deploy -- edward-coach-weinhaus.com
-```
-
-Wrangler uploads the files, then says
-`You already have DNS records that conflict for these Custom Domains ... Update them to point to this script instead?`
-Answer `y`. It replaces the apex and `www` records with the Worker's custom domains and issues
-certificates. In CI or with output piped, wrangler does this without asking; that is why the
-GitHub workflow must stay unused until after cutover (it is inert anyway while the files are
-not in the repository).
-
-Right after:
-
-1. **Purge the zone cache**: dashboard, the zone, Caching, Configuration, Purge Everything.
-   Cloudflare was caching responses from the old origin under the same URLs.
-2. **Check**: `curl -sI https://www.<domain>/` should show `server: cloudflare` and no
-   `cf-cache-status: HIT` from the old copy; then
-   `npm run verify -- <domain> --new https://www.<domain> --old-ip 78.40.143.30`.
-3. **Redirects** that used to come from the Shinjiru server:
-   - `edward-andrew-weinhaus.com`: `npm run redirect-rule -- edward-andrew-weinhaus.com apex-to-www`
-     recreates the apex to www 301 as a zone Redirect Rule (dashboard alternative: Rules,
-     Redirect Rules, template "Redirect from Root to WWW").
-   - `coach-edward-weinhaus.com`: its redirect is already a Cloudflare rule; confirm with
-     `curl -sI https://coach-edward-weinhaus.com/` (expect 308 to www).
-   - The other two serve both apex and www today; add a rule only if you want one canonical host.
-4. **Always Use HTTPS** (optional, recommended): dashboard, the zone, SSL/TLS, Edge
-   Certificates, Always Use HTTPS: On. Fixes the two zones that still answer on `http://`.
-
-Repeat for each site. Order suggestion: `edward-coach-weinhaus.com` first (no email, no
-redirects), then `coach-edward-weinhaus.com`, then the two `edward-andrew-*` domains.
+1. `npm run deploy -- <domain>` adds the Worker routes for apex and www. Proxied hostnames switch
+   to the Worker immediately; a DNS-only (grey cloud) hostname does not until step 3.
+2. If the old server did an apex/www redirect, recreate it first:
+   `npm run redirect-rule -- <domain> apex-to-www` (zone rules run ahead of Workers).
+3. In the zone's DNS, set the apex and www A records to `192.0.2.1`, proxied (orange cloud).
+   Keep a `www` CNAME to the apex, proxied. Delete AAAA records that point at the old host.
+4. Purge Everything on the zone, then
+   `npm run verify -- <domain> --new https://www.<domain> --old local`.
 
 ## 5. After cutover
 
@@ -260,17 +275,13 @@ Zero-downtime order:
 
 ## Rollback (while Shinjiru is still active)
 
-1. Dashboard, Workers & Pages, the site's Worker, Settings, Domains & Routes: remove the two
-   custom domains.
-2. In the zone's DNS, re-create `A @ 78.40.143.30` and `A www 78.40.143.30` with the same
-   proxy status they had before (the `.zone` export from `npm run dns` shows the originals).
-3. Purge Everything on the zone.
+See "Status" at the top: delete the two Worker routes, put the apex and www A records back on the
+old address, Purge Everything. The zone exports taken before each change hold the exact originals.
 
 ## What has and has not been verified
 
-- Verified in this session: every `wrangler.jsonc` passes `wrangler deploy --dry-run` with the
-  real files (live and `--preview` variants); `fetch`, `import`, `verify` and `dns` scripts were
-  run end to end against the live sites; the parity checker reports all files identical when
-  pointed at the live site. No page content was read; only counts and HTTP headers.
-- Not done here: no deploy to Cloudflare (no credentials in this session), no DNS change, and
-  `--old-ip` direct-to-origin checks could not be exercised from the sandbox.
+- After cutover (2026-10-04): every file of every site is byte-identical on the real hostname to
+  the copy taken from Shinjiru; apex and www answer as before; unknown paths return 404; no
+  response carries the old server's headers. With DNS at 192.0.2.1, any successful response can
+  only come from the Worker.
+- No page content was read at any point; only counts, hashes, status codes and headers.

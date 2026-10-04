@@ -5,9 +5,11 @@
 #
 # Per site: zone export (rollback material) -> preview deploy on workers.dev -> parity check of
 # the preview against the current site (stops before cutover on any difference unless --force,
-# or when the old host is not answering) -> live deploy, which attaches the custom domains and
-# replaces the DNS records that point at the old host -> cache purge -> parity check on the
-# real hostname -> a zone Redirect Rule if the old host redirected apex->www or www->apex.
+# or when the old host is not answering) -> live deploy with Worker routes on apex and www
+# (proxied hostnames switch at once) -> a zone Redirect Rule if the old host redirected
+# apex->www or www->apex -> apex/www DNS records moved to 192.0.2.1, proxied, so the old host
+# is out of the path -> cache purge -> parity check on the real hostname.
+# Rollback: delete the two Worker routes and import the zone export from backups/.
 #
 # Needs Cloudflare credentials (CLOUDFLARE_API_TOKEN, or CLOUDFLARE_EMAIL + CLOUDFLARE_API_KEY),
 # the files under sites/<domain>/public, and the permissions listed in docs/MIGRATION.md.
@@ -99,7 +101,11 @@ for s in $sites; do
 
   # 3. parity gate: preview vs the current site
   if [ "$old_up" = 1 ]; then
-    out=$("$ROOT/scripts/verify.sh" "$s" --new "$prev" --old "$canon" ${oldip:+--old-ip "$oldip"} | head -1)
+    out=$("$ROOT/scripts/verify.sh" "$s" --new "$prev" --old "$canon" ${oldip:+--old-ip "$oldip"} | sed -n 1p)
+    if ! printf '%s' "$out" | grep -q ' differ=0 missing-on-new=0'; then
+      sleep 20   # a redeployed preview can 404 a file for a few seconds while assets propagate
+      out=$("$ROOT/scripts/verify.sh" "$s" --new "$prev" --old "$canon" ${oldip:+--old-ip "$oldip"} | sed -n 1p)
+    fi
     echo "3. preview vs current site: $out"
     if ! printf '%s' "$out" | grep -q ' differ=0 missing-on-new=0'; then
       if [ "$force" = 1 ]; then echo "   differences found; continuing because of --force"
@@ -109,33 +115,64 @@ for s in $sites; do
     echo "3. old host is not answering; skipping the comparison"
   fi
 
-  # 4. live: attach custom domains (replaces the DNS records that point at the old host)
+  # 4. live: Worker routes on apex and www. Proxied hostnames switch to the Worker at once.
   log="$ROOT/backups/deploy-$s-live.log"
   "$ROOT/scripts/deploy.sh" "$s" >"$log" 2>&1 \
-    || { echo "4. live deploy failed:"; grep -i -E 'error|✘' "$log" | head -5; echo "   (full log: $log)"; exit 1; }
-  doms=$(api "$B/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains?zone_id=$zid" \
-    | jq -r --arg n "$name" '[.result[]? | select(.service == $n) | .hostname] | sort | join(", ")')
-  [ -n "$doms" ] || { echo "4. live deploy ran but no custom domain is attached to $name - see $log"; exit 1; }
-  echo "4. live: $doms now served by worker $name"
+    || { echo "4. live deploy failed:"; grep -i -E 'error|✘|code:' "$log" | head -6 || true; echo "   (full log: $log)"; exit 1; }
+  routes=$(api "$B/zones/$zid/workers/routes" | jq -r --arg n "$name" '[.result[]? | select(.script == $n) | .pattern] | sort | join(", ")')
+  [ -n "$routes" ] || { echo "4. live deploy ran but no route points at $name - see $log"; exit 1; }
+  echo "4. worker routes live: $routes"
 
-  # 5. drop cached copies of the old origin
-  api -X POST "$B/zones/$zid/purge_cache" --data '{"purge_everything":true}' \
-    | jq -r 'if .success then "5. zone cache purged" else "5. cache purge failed: \(.errors)" end'
-
-  # 6. the real hostname must now serve the same bytes as the preview
-  sleep 5
-  out=$("$ROOT/scripts/verify.sh" "$s" --new "$canon" --old local | head -1)
-  echo "6. live hostname vs local files: $out"
-
-  # 7. host-level redirect the old server used to do
-  if [ -z "$rule" ]; then echo "7. the old host had no apex/www redirect; none needed"
+  # 5. the apex/www redirect the old server did, recreated as a zone rule BEFORE the DNS change
+  #    (zone rules run ahead of Workers, and only for proxied hostnames)
+  if [ -z "$rule" ]; then echo "5. the old host had no apex/www redirect; none needed"
   else
-    case "$rule" in apex-to-www) src="https://$s/"; dst="https://www.$s/" ;; *) src="https://www.$s/"; dst="https://$s/" ;; esac
-    case "$(head_of "$src")" in
-      30[1278]\ "$dst"*) echo "7. $src still redirects to $dst (a zone rule already does it); nothing added" ;;
-      *) printf '7. '; "$ROOT/scripts/cf-redirect-rule.sh" "$s" "$rule" ;;
-    esac
+    case "$rule" in apex-to-www) from="$s"; to="www.$s" ;; *) from="www.$s"; to="$s" ;; esac
+    have=$(api "$B/zones/$zid/rulesets/phases/http_request_dynamic_redirect/entrypoint" \
+      | jq -r --arg h "$from" '[.result.rules[]? | select(.enabled != false) | select((.expression | contains("\"" + $h + "\"")) or (.expression | contains("://" + $h + "/")))] | length' || echo 0)
+    if [ "${have:-0}" -gt 0 ]; then echo "5. a zone rule already redirects $from -> $to; kept"
+    else printf '5. '; "$ROOT/scripts/cf-redirect-rule.sh" "$s" "$rule"; fi
   fi
+
+  # 6. DNS: point apex/www away from the old host. 192.0.2.1 is a reserved, never-routed address;
+  #    with the record proxied, Cloudflare answers via the Worker routes and never contacts it.
+  changed=0
+  recs=$(api "$B/zones/$zid/dns_records?per_page=100" | jq -c --arg a "$s" --arg w "www.$s" '[.result[] | select((.name == $a or .name == $w) and (.type == "A" or .type == "AAAA" or .type == "CNAME"))]')
+  declare -A dummy=()
+  while IFS= read -r r; do dummy["$r"]=1; done < <(printf '%s' "$recs" | jq -r '.[] | select(.type == "A" and .content == "192.0.2.1") | .name')
+  while IFS=$'\t' read -r rid rtype rname rcontent rproxied; do
+    [ -n "$rid" ] || continue
+    case "$rtype" in
+      A)
+        if [ "$rcontent" = 192.0.2.1 ]; then
+          [ "$rproxied" = true ] || { api -X PATCH "$B/zones/$zid/dns_records/$rid" --data '{"proxied":true}' | jq -e .success >/dev/null && changed=$((changed+1)); }
+        elif [ -n "${dummy[$rname]:-}" ]; then
+          api -X DELETE "$B/zones/$zid/dns_records/$rid" | jq -e .success >/dev/null && changed=$((changed+1))
+        else
+          api -X PATCH "$B/zones/$zid/dns_records/$rid" --data '{"content":"192.0.2.1","proxied":true}' | jq -e .success >/dev/null \
+            && { changed=$((changed+1)); dummy["$rname"]=1; }
+        fi ;;
+      AAAA)  # no IPv6 at the old host; Cloudflare still serves IPv6 for proxied names
+        api -X DELETE "$B/zones/$zid/dns_records/$rid" | jq -e .success >/dev/null && changed=$((changed+1)) ;;
+      CNAME)
+        [ "$rproxied" = true ] || { api -X PATCH "$B/zones/$zid/dns_records/$rid" --data '{"proxied":true}' | jq -e .success >/dev/null && changed=$((changed+1)); } ;;
+    esac
+  done < <(printf '%s' "$recs" | jq -r '.[] | [.id, .type, .name, .content, (.proxied|tostring)] | @tsv')
+  left=$(api "$B/zones/$zid/dns_records?per_page=100" | jq -r --arg a "$s" --arg w "www.$s" '[.result[] | select((.name == $a or .name == $w) and ((.type == "A" and .content != "192.0.2.1") or .proxied == false) and (.type == "A" or .type == "AAAA" or .type == "CNAME")) | "\(.type) \(.name) \(.content)"] | join("; ")')
+  if [ -n "$left" ]; then echo "6. DNS: $changed records changed, but these still bypass the Worker: $left"; exit 1; fi
+  echo "6. DNS: apex and www now point only at Cloudflare ($changed records changed)"
+  unset dummy
+
+  # 7. drop cached copies of the old origin
+  api -X POST "$B/zones/$zid/purge_cache" --data '{"purge_everything":true}' \
+    | jq -r 'if .success then "7. zone cache purged" else "7. cache purge failed: \(.errors)" end'
+
+  # 8. the real hostname must now serve the same bytes as the local files. With DNS at 192.0.2.1,
+  #    any 200 here can only come from the Worker.
+  sleep 5
+  out=$("$ROOT/scripts/verify.sh" "$s" --new "$canon" --old local | sed -n 1p)
+  echo "8. live hostname vs local files: $out"
+  for h in "$s" "www.$s"; do echo "   https://$h/ -> $(head_of "https://$h/")"; done
 done
 
 echo; echo "done. Check the sites in a browser. After a few quiet days, cancel the old hosting."
