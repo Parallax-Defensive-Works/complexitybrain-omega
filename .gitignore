@@ -14,3 +14,5 @@ sites/*/public/*
 !sites/*/public/_redirects
 !sites/*/public/_headers
 sites/*/.wrangler-preview.json
+__pycache__/
+*.pyc
